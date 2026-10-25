@@ -1,5 +1,5 @@
 
-import subprocess
+
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -112,33 +112,19 @@ footer {visibility: hidden;}
 # Read actual Hadoop output from HDFS
 @st.cache_data(ttl=15)
 def load_data():
-    result = subprocess.run(
-        [
-            "hdfs", "dfs", "-cat",
-            f"/user/{__import__('getpass').getuser()}/weblogs_out/part-00000"
-        ],
-        capture_output=True,
-        text=True,
-        timeout=60
-    )
-
-    if result.returncode != 0:
-        raise RuntimeError(
-            result.stderr.strip()
-            or "Could not read the Hadoop output."
-        )
-
     rows = []
-    for line in result.stdout.splitlines():
-        parts = line.strip().split("\t")
-        if len(parts) == 2:
-            try:
-                rows.append((parts[0], int(parts[1])))
-            except ValueError:
-                continue
+
+    with open("page_output.txt", "r", encoding="utf-8") as file:
+        for line in file:
+            parts = line.strip().split("\t")
+            if len(parts) == 2:
+                try:
+                    rows.append((parts[0], int(parts[1])))
+                except ValueError:
+                    continue
 
     if not rows:
-        raise ValueError("No URL counts found in the Hadoop output.")
+        raise ValueError("No URL counts found in page_output.txt")
 
     df = pd.DataFrame(rows, columns=["URL", "Requests"])
     return df.sort_values("Requests", ascending=False)
@@ -189,9 +175,8 @@ st.markdown("""
 try:
     df = load_data()
 except Exception as e:
-    st.error("Unable to load Hadoop output.")
-    st.markdown("### Check your setup")
-    st.code("""
+    st.error(f"Unable to load saved Hadoop output: {e}")
+    st.stop()
 jps
 hdfs dfs -ls /user/$USER/weblogs_out
 hdfs dfs -cat /user/$USER/weblogs_out/part-00000
